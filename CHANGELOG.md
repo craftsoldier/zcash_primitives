@@ -10,6 +10,17 @@ workspace.
 
 ## [Unreleased]
 
+### Added
+- `unstable-bound-notes` feature flag. The following API is available behind it,
+  is not covered by the crate's semver stability guarantees, and may change in
+  any future release:
+  - `zcash_primitives::transaction::builder::Builder::add_ironwood_output_with_rseed`
+
+### Changed
+- The `orchard` dependency is the `craftsoldier/orchard` fork of `orchard 0.16.0`,
+  which adds `orchard::builder::Builder::add_output_with_rseed` behind its
+  `unstable-bound-notes` feature flag.
+
 ## [0.31.0] - 2026-10-21
 
 ### Added

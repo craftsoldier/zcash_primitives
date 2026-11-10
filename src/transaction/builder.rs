@@ -1249,6 +1249,31 @@ impl<P: consensus::Parameters, U> Builder<P, U> {
             .map_err(Error::IronwoodRecipient)
     }
 
+    /// Adds an Ironwood recipient to the transaction, with a caller-provided `rseed`.
+    ///
+    /// See [`orchard::builder::Builder::add_output_with_rseed`].
+    #[cfg(feature = "unstable-bound-notes")]
+    pub fn add_ironwood_output_with_rseed<FE>(
+        &mut self,
+        ovk: Option<orchard::keys::OutgoingViewingKey>,
+        recipient: orchard::Address,
+        value: Zatoshis,
+        memo: MemoBytes,
+        rseed: orchard::note::RandomSeedBytes,
+    ) -> Result<(), Error<FE>> {
+        self.ironwood_builder
+            .as_mut()
+            .ok_or(Error::IronwoodBuilderNotAvailable)?
+            .add_output_with_rseed(
+                ovk,
+                recipient,
+                orchard::value::NoteValue::from_raw(value.into()),
+                memo.into_bytes(),
+                rseed,
+            )
+            .map_err(Error::IronwoodRecipient)
+    }
+
     /// Adds a Sapling note to be spent in this transaction.
     ///
     /// Returns an error if the given Merkle path does not have the same anchor as the
@@ -2741,6 +2766,80 @@ mod tests {
             result.pczt_parts.ironwood.as_ref().unwrap().actions().len(),
             1
         );
+    }
+
+    #[test]
+    #[cfg(all(feature = "circuits", feature = "unstable-bound-notes"))]
+    fn ironwood_output_with_rseed_carries_the_provided_rseed() {
+        let spend_fvk = orchard::keys::FullViewingKey::from(
+            &orchard::keys::SpendingKey::from_bytes([7; 32]).unwrap(),
+        );
+        let recipient = spend_fvk.address_at(0u32, orchard::keys::Scope::External);
+        let rho = orchard::note::Rho::from_bytes(&[1; 32]).unwrap();
+        let rseed = (0u8..=255)
+            .find_map(|b| orchard::note::RandomSeed::from_bytes([b; 32], &rho).into_option())
+            .expect("at least one test rseed is valid");
+        let note = orchard::Note::from_parts(
+            recipient,
+            orchard::value::NoteValue::from_raw(100_000),
+            rho,
+            rseed,
+            orchard::note::NoteVersion::V2,
+        )
+        .unwrap();
+        let zero = orchard::tree::MerkleHashOrchard::from_bytes(&[0; 32]).unwrap();
+        let merkle_path = orchard::tree::MerklePath::from_parts(0, [zero; 32]);
+        let orchard_anchor = merkle_path.root(note.commitment().into());
+
+        let mut builder = Builder::new(
+            nu6_3_test_network(),
+            zcash_protocol::consensus::BlockHeight::from_u32(10),
+            BuildConfig::Standard {
+                sapling_anchor: None,
+                orchard_anchor: Some(orchard_anchor),
+                ironwood_anchor: Some(orchard::Anchor::empty_tree()),
+                orchard_padding: BundlePadding::DEFAULT,
+                ironwood_padding: BundlePadding::UNPADDED,
+            },
+        );
+        builder
+            .add_orchard_spend::<crate::transaction::fees::zip317::FeeRule>(
+                spend_fvk,
+                note,
+                merkle_path,
+            )
+            .unwrap();
+        let provided_rseed = [0x5a; 32];
+        builder
+            .add_ironwood_output_with_rseed::<crate::transaction::fees::zip317::FeeRule>(
+                None,
+                recipient,
+                Zatoshis::const_from_u64(85_000),
+                MemoBytes::empty(),
+                orchard::note::RandomSeedBytes::from_bytes(provided_rseed),
+            )
+            .unwrap();
+
+        let result = builder
+            .build_for_pczt(
+                UnwrapErr(SysRng),
+                &crate::transaction::fees::zip317::FeeRule::standard(),
+            )
+            .unwrap();
+        let ironwood = result.pczt_parts.ironwood.as_ref().unwrap();
+        let action = &ironwood.actions()[result.ironwood_meta.output_action_index(0).unwrap()];
+        assert_eq!(
+            action
+                .output()
+                .rseed()
+                .as_ref()
+                .map(orchard::note::RandomSeed::as_bytes),
+            Some(&provided_rseed)
+        );
+        action
+            .output()
+            .verify_note_commitment(action.spend())
+            .unwrap();
     }
 
     #[test]

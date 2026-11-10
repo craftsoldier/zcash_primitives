@@ -40,7 +40,8 @@ memuse = { version = "0.2.2", default-features = false }
 ff = { version = "0.14", default-features = false }
 jubjub = "0.11"
 nonempty = { version = "0.11", default-features = false }
-orchard = { version = "0.16", default-features = false }
+# The `craftsoldier/orchard` fork of `orchard 0.16.0`.
+orchard = { git = "https://github.com/craftsoldier/orchard.git", rev = "3e6be4862cf931c50a9ad98a55104e01094b23e6", default-features = false }
 sapling = { package = "sapling-crypto", version = "0.9", default-features = false }
 
 # - Note Commitment Trees
@@ -84,7 +85,7 @@ rand = { version = "0.10", default-features = false, features = ["sys_rng"] }
 rand_xorshift = "0.5"
 transparent = { package = "zcash_transparent", version = "0.11", default-features = false, features = ["test-dependencies"] }
 sapling = { package = "sapling-crypto", version = "0.9", default-features = false, features = ["test-dependencies"] }
-orchard = { version = "0.16", default-features = false, features = ["test-dependencies"] }
+orchard = { git = "https://github.com/craftsoldier/orchard.git", rev = "3e6be4862cf931c50a9ad98a55104e01094b23e6", default-features = false, features = ["test-dependencies"] }
 zcash_protocol = { version = "0.11", default-features = false, features = ["local-consensus", "test-dependencies"] }
 zip32 = { version = "0.3", default-features = false }
 
@@ -140,6 +141,9 @@ no-expensive-tests = []
 ## A feature that provides `FeeRule` implementations and constructors for
 ## non-standard fees.
 non-standard-fees = []
+
+## Enables `Builder::add_ironwood_output_with_rseed`. Not covered by semver.
+unstable-bound-notes = ["orchard/unstable-bound-notes"]
 
 [lib]
 bench = false
